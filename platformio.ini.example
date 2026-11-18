@@ -1,0 +1,10 @@
+[env:esp32-s3-devkitc-1]
+platform = espressif32
+board = esp32-s3-devkitc-1
+framework = arduino
+
+monitor_speed = 115200
+
+; USB Host is provided by the Arduino-ESP32 core.
+; Select USB-OTG mode / disable USB CDC On Boot as appropriate
+; for the particular S3 board.

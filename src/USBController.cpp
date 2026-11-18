@@ -3,25 +3,37 @@
 #include <tusb.h>
 
 USBController::USBController()
-    : _parser(&_default_parser) {}
+    : _parser(&_default_parser) {
+    _mutex = xSemaphoreCreateMutex();
+}
 
 USBController::USBController(ControllerParser& parser)
-    : _parser(&parser) {}
+    : _parser(&parser) {
+    _mutex = xSemaphoreCreateMutex();
+}
+
+USBController::~USBController() {
+    if (_mutex != nullptr) {
+        vSemaphoreDelete(_mutex);
+    }
+}
 
 bool USBController::registerWithHost() {
-    portENTER_CRITICAL(&_mux);
+    if (_mutex == nullptr) return false;
+    if (xSemaphoreTake(_mutex, portMAX_DELAY) != pdTRUE) return false;
     if (_registered) {
-        portEXIT_CRITICAL(&_mux);
+        xSemaphoreGive(_mutex);
         return true;
     }
+    xSemaphoreGive(_mutex);
 
     if (!USBHostHID.addDevice(this)) {
-        portEXIT_CRITICAL(&_mux);
         return false;
     }
 
+    if (xSemaphoreTake(_mutex, portMAX_DELAY) != pdTRUE) return false;
     _registered = true;
-    portEXIT_CRITICAL(&_mux);
+    xSemaphoreGive(_mutex);
     return true;
 }
 
@@ -37,37 +49,51 @@ void USBController::update() {
 }
 
 bool USBController::connected() const {
-    portENTER_CRITICAL(&_mux);
+    if (_mutex == nullptr) return false;
+    if (xSemaphoreTake(_mutex, portMAX_DELAY) != pdTRUE) return false;
     const bool connected = _connected;
-    portEXIT_CRITICAL(&_mux);
+    xSemaphoreGive(_mutex);
     return connected;
 }
 
 bool USBController::stateChanged() const {
-    portENTER_CRITICAL(&_mux);
+    if (_mutex == nullptr) return false;
+    if (xSemaphoreTake(_mutex, portMAX_DELAY) != pdTRUE) return false;
     const bool changed = _state_changed;
-    portEXIT_CRITICAL(&_mux);
+    xSemaphoreGive(_mutex);
     return changed;
 }
 
 void USBController::clearStateChanged() {
-    portENTER_CRITICAL(&_mux);
+    if (_mutex == nullptr) return;
+    if (xSemaphoreTake(_mutex, portMAX_DELAY) != pdTRUE) return;
     _state_changed = false;
-    portEXIT_CRITICAL(&_mux);
+    xSemaphoreGive(_mutex);
 }
 
 ControllerInputState USBController::state() const {
-    portENTER_CRITICAL(&_mux);
-    ControllerInputState snapshot = _state;
-    portEXIT_CRITICAL(&_mux);
+    ControllerInputState snapshot{};
+    if (_mutex == nullptr) return snapshot;
+    if (xSemaphoreTake(_mutex, portMAX_DELAY) != pdTRUE) return snapshot;
+    snapshot = _state;
+    xSemaphoreGive(_mutex);
     return snapshot;
 }
 
 void USBController::setCallback(ReportCallback callback, void* arg) {
-    portENTER_CRITICAL(&_mux);
+    if (_mutex == nullptr) return;
+    if (xSemaphoreTake(_mutex, portMAX_DELAY) != pdTRUE) return;
     _callback = callback;
     _callback_arg = arg;
-    portEXIT_CRITICAL(&_mux);
+    xSemaphoreGive(_mutex);
+}
+
+void USBController::setDisconnectCallback(DisconnectCallback callback, void* arg) {
+    if (_mutex == nullptr) return;
+    if (xSemaphoreTake(_mutex, portMAX_DELAY) != pdTRUE) return;
+    _disconnect_callback = callback;
+    _disconnect_callback_arg = arg;
+    xSemaphoreGive(_mutex);
 }
 
 bool USBController::claim(
@@ -77,6 +103,14 @@ bool USBController::claim(
     const uint8_t* report_desc,
     uint16_t desc_len
 ) {
+    if (_mutex == nullptr) return false;
+    if (xSemaphoreTake(_mutex, portMAX_DELAY) != pdTRUE) return false;
+    if (_connected) {
+        xSemaphoreGive(_mutex);
+        return false;
+    }
+    xSemaphoreGive(_mutex);
+
     uint16_t vendor_id = 0;
     uint16_t product_id = 0;
     if (!tuh_vid_pid_get(dev_addr, &vendor_id, &product_id)) {
@@ -92,31 +126,35 @@ bool USBController::claim(
         return false;
     }
 
-    portENTER_CRITICAL(&_mux);
+    if (_mutex == nullptr) return true;
+    if (xSemaphoreTake(_mutex, portMAX_DELAY) != pdTRUE) return false;
     _dev_addr = dev_addr;
     _idx = idx;
     _connected = true;
     _state_changed = false;
     _callback_pending = false;
     _state = ControllerInputState{};
-    portEXIT_CRITICAL(&_mux);
+    _disconnect_pending = false;
+    xSemaphoreGive(_mutex);
     return true;
 }
 
 void USBController::onUnmount(uint8_t dev_addr, uint8_t idx) {
-    portENTER_CRITICAL(&_mux);
+    if (_mutex == nullptr) return;
+    if (xSemaphoreTake(_mutex, portMAX_DELAY) != pdTRUE) return;
     if (dev_addr != _dev_addr || idx != _idx) {
-        portEXIT_CRITICAL(&_mux);
+        xSemaphoreGive(_mutex);
         return;
     }
 
     _connected = false;
     _state = ControllerInputState{};
-    _state_changed = true;
-    _callback_pending = _callback != nullptr;
+    _state_changed = false;
+    _callback_pending = false;
+    _disconnect_pending = _disconnect_callback != nullptr;
     _dev_addr = 0;
     _idx = 0;
-    portEXIT_CRITICAL(&_mux);
+    xSemaphoreGive(_mutex);
     clearHidInterfaceBinding();
 }
 
@@ -126,40 +164,52 @@ void USBController::onReport(
     const uint8_t* report,
     uint16_t len
 ) {
-    portENTER_CRITICAL(&_mux);
+    if (_mutex == nullptr) return;
+    if (xSemaphoreTake(_mutex, portMAX_DELAY) != pdTRUE) return;
     if (!_connected || dev_addr != _dev_addr || idx != _idx) {
-        portEXIT_CRITICAL(&_mux);
+        xSemaphoreGive(_mutex);
         return;
     }
-    ControllerInputState next = _state;
-    portEXIT_CRITICAL(&_mux);
+    xSemaphoreGive(_mutex);
 
+    ControllerInputState next{};
     if (!_parser->parse(report, len, next)) return;
 
-    portENTER_CRITICAL(&_mux);
+    if (xSemaphoreTake(_mutex, portMAX_DELAY) != pdTRUE) return;
     if (!_connected || dev_addr != _dev_addr || idx != _idx) {
-        portEXIT_CRITICAL(&_mux);
+        xSemaphoreGive(_mutex);
         return;
     }
     _state = next;
     _state_changed = true;
     _callback_pending = _callback != nullptr;
-    portEXIT_CRITICAL(&_mux);
+    xSemaphoreGive(_mutex);
 }
 
 void USBController::dispatchReportCallback() {
-    portENTER_CRITICAL(&_mux);
+    if (_mutex == nullptr) return;
+    if (xSemaphoreTake(_mutex, portMAX_DELAY) != pdTRUE) return;
     if (!_callback_pending || _callback == nullptr) {
         _callback_pending = false;
-        portEXIT_CRITICAL(&_mux);
-        return;
+    } else {
+        _callback_pending = false;
+        ControllerInputState snapshot = _state;
+        ReportCallback callback = _callback;
+        void* callback_arg = _callback_arg;
+        xSemaphoreGive(_mutex);
+        callback(snapshot, callback_arg);
+        if (xSemaphoreTake(_mutex, portMAX_DELAY) != pdTRUE) return;
     }
 
-    _callback_pending = false;
-    ControllerInputState snapshot = _state;
-    ReportCallback callback = _callback;
-    void* callback_arg = _callback_arg;
-    portEXIT_CRITICAL(&_mux);
-
-    callback(snapshot, callback_arg);
+    if (_disconnect_pending) {
+        _disconnect_pending = false;
+        DisconnectCallback disconnect_callback = _disconnect_callback;
+        void* disconnect_callback_arg = _disconnect_callback_arg;
+        xSemaphoreGive(_mutex);
+        if (disconnect_callback != nullptr) {
+            disconnect_callback(disconnect_callback_arg);
+        }
+        return;
+    }
+    xSemaphoreGive(_mutex);
 }

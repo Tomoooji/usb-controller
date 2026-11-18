@@ -80,6 +80,7 @@ void loop() {
 
 `update()` は `USBHost.task()` を呼び出すため、毎回 `loop()` から呼んでください。
 入力コールバックを使う場合は `controller.setCallback()` を利用できます。
+切断通知を受け取る場合は `controller.setDisconnectCallback()` を利用できます。
 
 ## 拡張
 

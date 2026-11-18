@@ -2,7 +2,8 @@
 
 #include <USBHost.h>
 #include <USBHostHID.h>
-#include <freertos/portmacro.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/semphr.h>
 
 #include "ControllerInput.h"
 #include "DS4Parser.h"
@@ -10,9 +11,15 @@
 class USBController : public USBHostHIDDevice {
 public:
     using ReportCallback = void (*)(const ControllerInputState&, void*);
+    using DisconnectCallback = void (*)(void*);
 
     USBController();
+    // Custom parser references must remain valid for the USBController lifetime.
     explicit USBController(ControllerParser& parser);
+    ~USBController() override;
+
+    USBController(const USBController&) = delete;
+    USBController& operator=(const USBController&) = delete;
 
     bool begin();
     bool registerWithHost();
@@ -24,6 +31,7 @@ public:
     ControllerInputState state() const;
 
     void setCallback(ReportCallback callback, void* arg = nullptr);
+    void setDisconnectCallback(DisconnectCallback callback, void* arg = nullptr);
 
 protected:
     bool claim(
@@ -48,7 +56,7 @@ private:
 
     DS4Parser _default_parser;
     ControllerParser* _parser;
-    mutable portMUX_TYPE _mux = portMUX_INITIALIZER_UNLOCKED;
+    SemaphoreHandle_t _mutex = nullptr;
     bool _registered = false;
     bool _connected = false;
     bool _state_changed = false;
@@ -56,6 +64,9 @@ private:
     ControllerInputState _state{};
     ReportCallback _callback = nullptr;
     void* _callback_arg = nullptr;
+    DisconnectCallback _disconnect_callback = nullptr;
+    void* _disconnect_callback_arg = nullptr;
+    bool _disconnect_pending = false;
     uint8_t _dev_addr = 0;
     uint8_t _idx = 0;
 };

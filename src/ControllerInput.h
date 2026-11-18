@@ -49,6 +49,7 @@ public:
         uint16_t desc_len
     ) const = 0;
 
+    // On success, parse() replaces every field in out.
     virtual bool parse(
         const uint8_t* report,
         size_t length,

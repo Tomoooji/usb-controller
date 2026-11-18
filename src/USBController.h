@@ -2,6 +2,7 @@
 
 #include <USBHost.h>
 #include <USBHostHID.h>
+#include <freertos/portmacro.h>
 
 #include "ControllerInput.h"
 #include "DS4Parser.h"
@@ -17,15 +18,12 @@ public:
     bool registerWithHost();
     void update();
 
-    bool connected() const { return _connected; }
-    bool stateChanged() const { return _state_changed; }
-    void clearStateChanged() { _state_changed = false; }
-    const ControllerInputState& state() const { return _state; }
+    bool connected() const;
+    bool stateChanged() const;
+    void clearStateChanged();
+    ControllerInputState state() const;
 
-    void setCallback(ReportCallback callback, void* arg = nullptr) {
-        _callback = callback;
-        _callback_arg = arg;
-    }
+    void setCallback(ReportCallback callback, void* arg = nullptr);
 
 protected:
     bool claim(
@@ -50,6 +48,8 @@ private:
 
     DS4Parser _default_parser;
     ControllerParser* _parser;
+    mutable portMUX_TYPE _mux = portMUX_INITIALIZER_UNLOCKED;
+    bool _registered = false;
     bool _connected = false;
     bool _state_changed = false;
     bool _callback_pending = false;

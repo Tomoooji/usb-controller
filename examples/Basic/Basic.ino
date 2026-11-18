@@ -17,7 +17,7 @@ void loop() {
     controller.update();
 
     if (controller.connected() && controller.stateChanged()) {
-        const ControllerInputState& state = controller.state();
+        ControllerInputState state = controller.state();
         Serial.printf(
             "LX=%u LY=%u RX=%u RY=%u cross=%d circle=%d\n",
             state.left_x, state.left_y,

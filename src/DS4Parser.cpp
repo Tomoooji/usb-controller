@@ -29,13 +29,12 @@ bool DS4Parser::parse(
     out.left_y = report[2];
     out.right_x = report[3];
     out.right_y = report[4];
-    out.l2 = report[5];
-    out.r2 = report[6];
-    out.sequence = report[7];
-
-    const uint8_t buttons0 = report[8];
-    const uint8_t buttons1 = report[9];
-    const uint8_t buttons2 = report[10];
+    const uint8_t buttons0 = report[5];
+    const uint8_t buttons1 = report[6];
+    const uint8_t buttons2 = report[7];
+    out.l2 = report[8];
+    out.r2 = report[9];
+    out.sequence = (buttons2 >> 2) & 0x3F;
     const uint8_t raw_dpad = buttons0 & 0x0F;
 
     out.dpad = raw_dpad <= 8 ? raw_dpad : 8;

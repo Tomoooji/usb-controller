@@ -29,6 +29,13 @@ lib_deps =
     https://github.com/Tomoooji/usb-controller.git
 ```
 
+featureブランチを直接ビルドする場合は、`lib_deps` にブランチ名を指定します。
+
+```ini
+lib_deps =
+    https://github.com/Tomoooji/usb-controller.git#feature/wired-controller-input
+```
+
 USB Host ポートを使えるよう、ボード側で OTG と VBUS を設定してください。
 
 ## 使用例
@@ -53,7 +60,7 @@ void loop() {
     controller.update();
 
     if (controller.connected() && controller.stateChanged()) {
-        const ControllerInputState& state = controller.state();
+        ControllerInputState state = controller.state();
         Serial.printf(
             "LX=%3u LY=%3u RX=%3u RY=%3u L2=%3u R2=%3u "
             "buttons=%c%c%c%c dpad=%u\n",
@@ -66,6 +73,7 @@ void loop() {
             state.triangle ? 'T' : '-',
             state.dpad
         );
+        controller.clearStateChanged();
     }
 }
 ```

@@ -4,7 +4,7 @@
 
 class DS4Parser final : public ControllerParser {
 public:
-    static constexpr size_t USB_REPORT_SIZE = 31;
+    static constexpr size_t MIN_USB_REPORT_SIZE = 31;
     static constexpr uint8_t USB_REPORT_ID = 0x01;
     static constexpr uint16_t SONY_VID = 0x054C;
     static constexpr uint16_t DS4_PID_V1 = 0x05C4;

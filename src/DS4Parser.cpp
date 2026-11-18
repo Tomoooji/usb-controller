@@ -20,7 +20,7 @@ bool DS4Parser::parse(
     size_t length,
     ControllerInputState& out
 ) const {
-    if (report == nullptr || length < USB_REPORT_SIZE ||
+    if (report == nullptr || length < MIN_USB_REPORT_SIZE ||
         report[0] != USB_REPORT_ID) {
         return false;
     }

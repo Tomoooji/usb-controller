@@ -80,6 +80,19 @@ ControllerInputState USBController::state() const {
     return snapshot;
 }
 
+bool USBController::takeState(ControllerInputState& out) {
+    if (_mutex == nullptr) return false;
+    if (xSemaphoreTake(_mutex, portMAX_DELAY) != pdTRUE) return false;
+    if (!_state_changed) {
+        xSemaphoreGive(_mutex);
+        return false;
+    }
+    out = _state;
+    _state_changed = false;
+    xSemaphoreGive(_mutex);
+    return true;
+}
+
 void USBController::setCallback(ReportCallback callback, void* arg) {
     if (_mutex == nullptr) return;
     if (xSemaphoreTake(_mutex, portMAX_DELAY) != pdTRUE) return;
@@ -128,13 +141,10 @@ bool USBController::claim(
 
     if (_mutex == nullptr) return true;
     if (xSemaphoreTake(_mutex, portMAX_DELAY) != pdTRUE) return false;
-    _dev_addr = dev_addr;
-    _idx = idx;
     _connected = true;
     _state_changed = false;
     _callback_pending = false;
     _state = ControllerInputState{};
-    _disconnect_pending = false;
     xSemaphoreGive(_mutex);
     return true;
 }
@@ -152,8 +162,6 @@ void USBController::onUnmount(uint8_t dev_addr, uint8_t idx) {
     _state_changed = false;
     _callback_pending = false;
     _disconnect_pending = _disconnect_callback != nullptr;
-    _dev_addr = 0;
-    _idx = 0;
     xSemaphoreGive(_mutex);
     clearHidInterfaceBinding();
 }

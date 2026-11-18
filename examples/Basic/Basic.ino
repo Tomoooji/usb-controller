@@ -16,14 +16,13 @@ void setup() {
 void loop() {
     controller.update();
 
-    if (controller.connected() && controller.stateChanged()) {
-        ControllerInputState state = controller.state();
+    ControllerInputState state;
+    if (controller.takeState(state)) {
         Serial.printf(
             "LX=%u LY=%u RX=%u RY=%u cross=%d circle=%d\n",
             state.left_x, state.left_y,
             state.right_x, state.right_y,
             state.cross, state.circle
         );
-        controller.clearStateChanged();
     }
 }

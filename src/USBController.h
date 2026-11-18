@@ -29,6 +29,7 @@ public:
     bool stateChanged() const;
     void clearStateChanged();
     ControllerInputState state() const;
+    bool takeState(ControllerInputState& out);
 
     void setCallback(ReportCallback callback, void* arg = nullptr);
     void setDisconnectCallback(DisconnectCallback callback, void* arg = nullptr);
@@ -67,6 +68,4 @@ private:
     DisconnectCallback _disconnect_callback = nullptr;
     void* _disconnect_callback_arg = nullptr;
     bool _disconnect_pending = false;
-    uint8_t _dev_addr = 0;
-    uint8_t _idx = 0;
 };

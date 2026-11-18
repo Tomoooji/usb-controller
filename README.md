@@ -59,8 +59,8 @@ void setup() {
 void loop() {
     controller.update();
 
-    if (controller.connected() && controller.stateChanged()) {
-        ControllerInputState state = controller.state();
+    ControllerInputState state;
+    if (controller.takeState(state)) {
         Serial.printf(
             "LX=%3u LY=%3u RX=%3u RY=%3u L2=%3u R2=%3u "
             "buttons=%c%c%c%c dpad=%u\n",
@@ -73,12 +73,13 @@ void loop() {
             state.triangle ? 'T' : '-',
             state.dpad
         );
-        controller.clearStateChanged();
     }
 }
 ```
 
 `update()` は `USBHost.task()` を呼び出すため、毎回 `loop()` から呼んでください。
+登録した `USBController` インスタンスは、USB Hostが稼働する間ずっと生存させてください。
+`setup()` 内のローカル変数など、寿命が短いオブジェクトは使わないでください。
 入力コールバックを使う場合は `controller.setCallback()` を利用できます。
 切断通知を受け取る場合は `controller.setDisconnectCallback()` を利用できます。
 

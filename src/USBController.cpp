@@ -25,15 +25,16 @@ bool USBController::registerWithHost() {
         xSemaphoreGive(_mutex);
         return true;
     }
+    _registered = true;
     xSemaphoreGive(_mutex);
 
     if (!USBHostHID.addDevice(this)) {
+        if (xSemaphoreTake(_mutex, portMAX_DELAY) == pdTRUE) {
+            _registered = false;
+            xSemaphoreGive(_mutex);
+        }
         return false;
     }
-
-    if (xSemaphoreTake(_mutex, portMAX_DELAY) != pdTRUE) return false;
-    _registered = true;
-    xSemaphoreGive(_mutex);
     return true;
 }
 
@@ -93,6 +94,34 @@ bool USBController::takeState(ControllerInputState& out) {
     return true;
 }
 
+bool USBController::connectionChanged() const {
+    if (_mutex == nullptr) return false;
+    if (xSemaphoreTake(_mutex, portMAX_DELAY) != pdTRUE) return false;
+    const bool changed = _connection_changed;
+    xSemaphoreGive(_mutex);
+    return changed;
+}
+
+void USBController::clearConnectionChanged() {
+    if (_mutex == nullptr) return;
+    if (xSemaphoreTake(_mutex, portMAX_DELAY) != pdTRUE) return;
+    _connection_changed = false;
+    xSemaphoreGive(_mutex);
+}
+
+bool USBController::takeConnectionState(bool& connected) {
+    if (_mutex == nullptr) return false;
+    if (xSemaphoreTake(_mutex, portMAX_DELAY) != pdTRUE) return false;
+    if (!_connection_changed) {
+        xSemaphoreGive(_mutex);
+        return false;
+    }
+    connected = _connected;
+    _connection_changed = false;
+    xSemaphoreGive(_mutex);
+    return true;
+}
+
 void USBController::setCallback(ReportCallback callback, void* arg) {
     if (_mutex == nullptr) return;
     if (xSemaphoreTake(_mutex, portMAX_DELAY) != pdTRUE) return;
@@ -118,24 +147,37 @@ bool USBController::claim(
 ) {
     if (_mutex == nullptr) return false;
     if (xSemaphoreTake(_mutex, portMAX_DELAY) != pdTRUE) return false;
-    if (_connected) {
+    if (_connected || _claiming) {
         xSemaphoreGive(_mutex);
         return false;
     }
+    _claiming = true;
     xSemaphoreGive(_mutex);
 
     uint16_t vendor_id = 0;
     uint16_t product_id = 0;
     if (!tuh_vid_pid_get(dev_addr, &vendor_id, &product_id)) {
+        if (xSemaphoreTake(_mutex, portMAX_DELAY) == pdTRUE) {
+            _claiming = false;
+            xSemaphoreGive(_mutex);
+        }
         return false;
     }
 
     if (!_parser->matches(
             vendor_id, product_id, protocol, report_desc, desc_len)) {
+        if (xSemaphoreTake(_mutex, portMAX_DELAY) == pdTRUE) {
+            _claiming = false;
+            xSemaphoreGive(_mutex);
+        }
         return false;
     }
 
     if (!bindHidInterface(dev_addr, idx)) {
+        if (xSemaphoreTake(_mutex, portMAX_DELAY) == pdTRUE) {
+            _claiming = false;
+            xSemaphoreGive(_mutex);
+        }
         return false;
     }
 
@@ -143,8 +185,10 @@ bool USBController::claim(
     if (xSemaphoreTake(_mutex, portMAX_DELAY) != pdTRUE) return false;
     _connected = true;
     _state_changed = false;
+    _connection_changed = true;
     _callback_pending = false;
     _state = ControllerInputState{};
+    _claiming = false;
     xSemaphoreGive(_mutex);
     return true;
 }
@@ -160,6 +204,7 @@ void USBController::onUnmount(uint8_t dev_addr, uint8_t idx) {
     _connected = false;
     _state = ControllerInputState{};
     _state_changed = false;
+    _connection_changed = true;
     _callback_pending = false;
     _disconnect_pending = _disconnect_callback != nullptr;
     xSemaphoreGive(_mutex);
@@ -188,9 +233,12 @@ void USBController::onReport(
         xSemaphoreGive(_mutex);
         return;
     }
+    const bool meaningful_change = _state.hasMeaningfulChange(next);
     _state = next;
-    _state_changed = true;
-    _callback_pending = _callback != nullptr;
+    if (meaningful_change) {
+        _state_changed = true;
+        _callback_pending = _callback != nullptr;
+    }
     xSemaphoreGive(_mutex);
 }
 

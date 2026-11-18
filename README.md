@@ -78,10 +78,17 @@ void loop() {
 ```
 
 `update()` は `USBHost.task()` を呼び出すため、毎回 `loop()` から呼んでください。
+このライブラリは同時に1台のコントローラーのみ対応します。
+`takeState()` は最新の意味ある入力変化だけを一度に取得し、取得時に更新フラグをクリアします。
+`sequence` のみが変化しても `takeState()` は更新扱いになりません。
+接続・切断の変化は `takeConnectionState(bool& connected)` または
+切断専用コールバックで取得できます。
 登録した `USBController` インスタンスは、USB Hostが稼働する間ずっと生存させてください。
 `setup()` 内のローカル変数など、寿命が短いオブジェクトは使わないでください。
 入力コールバックを使う場合は `controller.setCallback()` を利用できます。
 切断通知を受け取る場合は `controller.setDisconnectCallback()` を利用できます。
+コールバックは `USBHost.task()` のループ処理中に呼ばれます。コールバックは短く保ち、
+長い `delay()` やブロック処理、IS​​R相当の処理は行わないでください。
 
 ## 拡張
 

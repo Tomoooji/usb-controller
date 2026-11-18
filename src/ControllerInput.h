@@ -33,6 +33,32 @@ struct ControllerInputState {
     uint8_t battery = 0;
     bool cable_connected = false;
     uint8_t sequence = 0;
+
+    bool hasMeaningfulChange(const ControllerInputState& other) const {
+        return left_x != other.left_x ||
+               left_y != other.left_y ||
+               right_x != other.right_x ||
+               right_y != other.right_y ||
+               l2 != other.l2 ||
+               r2 != other.r2 ||
+               square != other.square ||
+               cross != other.cross ||
+               circle != other.circle ||
+               triangle != other.triangle ||
+               l1 != other.l1 ||
+               r1 != other.r1 ||
+               l2_button != other.l2_button ||
+               r2_button != other.r2_button ||
+               create != other.create ||
+               options != other.options ||
+               l3 != other.l3 ||
+               r3 != other.r3 ||
+               ps != other.ps ||
+               touchpad != other.touchpad ||
+               dpad != other.dpad ||
+               battery != other.battery ||
+               cable_connected != other.cable_connected;
+    }
 };
 
 using DS4InputState = ControllerInputState;

@@ -30,6 +30,9 @@ public:
     void clearStateChanged();
     ControllerInputState state() const;
     bool takeState(ControllerInputState& out);
+    bool connectionChanged() const;
+    void clearConnectionChanged();
+    bool takeConnectionState(bool& connected);
 
     void setCallback(ReportCallback callback, void* arg = nullptr);
     void setDisconnectCallback(DisconnectCallback callback, void* arg = nullptr);
@@ -60,7 +63,9 @@ private:
     SemaphoreHandle_t _mutex = nullptr;
     bool _registered = false;
     bool _connected = false;
+    bool _claiming = false;
     bool _state_changed = false;
+    bool _connection_changed = false;
     bool _callback_pending = false;
     ControllerInputState _state{};
     ReportCallback _callback = nullptr;

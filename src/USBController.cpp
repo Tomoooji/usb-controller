@@ -164,8 +164,22 @@ bool USBController::claim(
         return false;
     }
 
-    if (!_parser->matches(
-            vendor_id, product_id, protocol, report_desc, desc_len)) {
+    if (_parser == &_default_parser) {
+        if (_default_parser.matches(
+                vendor_id, product_id, protocol, report_desc, desc_len)) {
+            _parser = &_default_parser;
+        } else if (_dualsense_parser.matches(
+                       vendor_id, product_id, protocol, report_desc, desc_len)) {
+            _parser = &_dualsense_parser;
+        } else {
+            if (xSemaphoreTake(_mutex, portMAX_DELAY) == pdTRUE) {
+                _claiming = false;
+                xSemaphoreGive(_mutex);
+            }
+            return false;
+        }
+    } else if (!_parser->matches(
+                   vendor_id, product_id, protocol, report_desc, desc_len)) {
         if (xSemaphoreTake(_mutex, portMAX_DELAY) == pdTRUE) {
             _claiming = false;
             xSemaphoreGive(_mutex);
@@ -207,6 +221,9 @@ void USBController::onUnmount(uint8_t dev_addr, uint8_t idx) {
     _connection_changed = true;
     _callback_pending = false;
     _disconnect_pending = _disconnect_callback != nullptr;
+    if (_parser == &_dualsense_parser) {
+        _parser = &_default_parser;
+    }
     xSemaphoreGive(_mutex);
     clearHidInterfaceBinding();
 }

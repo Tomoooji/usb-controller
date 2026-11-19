@@ -7,6 +7,7 @@
 
 #include "ControllerInput.h"
 #include "DS4Parser.h"
+#include "DualSenseParser.h"
 
 class USBController : public USBHostHIDDevice {
 public:
@@ -59,6 +60,7 @@ private:
     void dispatchReportCallback() override;
 
     DS4Parser _default_parser;
+    DualSenseParser _dualsense_parser;
     ControllerParser* _parser;
     SemaphoreHandle_t _mutex = nullptr;
     bool _registered = false;

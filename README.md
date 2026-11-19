@@ -8,6 +8,7 @@ Arduino ライブラリです。現在は DualShock 4 の USB HID input report �
 - ESP32-S2 / ESP32-S3 / ESP32-P4
 - Arduino-ESP32 の USB Host 対応版
 - DualShock 4 (VID `0x054C`, PID `0x05C4` または `0x09CC`)
+- DualSense (VID `0x054C`, PID `0x0CE6`; Edge `0x0DF2`)
 - USB OTG host 側の VBUS 5 V 供給
 
 ## Arduino IDE
@@ -93,7 +94,7 @@ void loop() {
 ## 拡張
 
 USB Host の受信処理とコントローラー固有のreport解析を分離しています。
-他のコントローラーを追加する場合は `ControllerParser` を実装し、
+DualShock 4とDualSenseは標準パーサーで対応しています。他のコントローラーを追加する場合は `ControllerParser` を実装し、
 `USBController` のコンストラクターへ渡してください。
 
 `ControllerInputState` は複数のコントローラーで共通利用しやすい基本入力を表します。
